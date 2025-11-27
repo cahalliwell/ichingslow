@@ -63,7 +63,8 @@ import Svg, {
   Circle as SvgCircle,
 } from "react-native-svg";
 import { BarChart as ReBarChart, Bar, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
-import { createClient } from "@supabase/supabase-js";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./src/lib/supabaseClient";
+import { deleteAccount } from "./src/utils/deleteAccount";
 
 let Purchases = null;
 let PurchasesLogLevel = null;
@@ -620,18 +621,6 @@ function useRevenueCatController(appUserID, authReady) {
   return contextValue;
 }
 
-
-// 🔗 Supabase client
-export const SUPABASE_URL = "https://cvowwctcpepbctokktpn.supabase.co";
-export const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2b3d3Y3RjcGVwYmN0b2trdHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MTYyMjIsImV4cCI6MjA3NjI5MjIyMn0.eOJ1Y7c5aBtf64sEXnO1G7z3YQAOhJNUqPfuLcjdNFw";
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
 
 // 📜 Hexagram data helpers
 const SHEET_URL =
@@ -6089,23 +6078,9 @@ function SettingsScreen({ navigation }) {
 
   const handleDeleteAccount = useCallback(async () => {
     setIsDeleting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("delete-account", {
-        method: "POST",
-      });
-      if (error) {
-        throw error;
-      }
-      if (data?.error) {
-        const errorMessage =
-          typeof data.error === "string" ? data.error : "Unable to delete your account.";
-        throw new Error(errorMessage);
-      }
-      if (!data?.message) {
-        throw new Error("Unexpected response from the server.");
-      }
+    const result = await deleteAccount();
 
-      await supabase.auth.signOut();
+    if (result.success) {
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
@@ -6113,15 +6088,14 @@ function SettingsScreen({ navigation }) {
         })
       );
       Alert.alert("Account deleted", "Your account has been permanently deleted.");
-    } catch (error) {
-      console.log("Delete account error", error?.message || error);
+    } else {
       Alert.alert(
         "Unable to delete account",
-        error?.message || "Please check your connection and try again."
+        result.error || "Please check your connection and try again."
       );
-    } finally {
-      setIsDeleting(false);
     }
+
+    setIsDeleting(false);
   }, [navigation]);
 
   const confirmDeleteAccount = useCallback(() => {
